@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\winma\Desktop\projects\prediction-model\venv"
+VIRTUAL_ENV="C:\Users\winma\Desktop\projects\prediction-model1\prediction-model1\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
