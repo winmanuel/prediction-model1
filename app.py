@@ -34,7 +34,7 @@ def haversine_km(lat1, lon1, lat2, lon2):
     lat1, lon1, lat2, lon2 = map(radians, [float(lat1), float(lon1), float(lat2), float(lon2)])
     dlat = lat2 - lat1
     dlon = lon2 - lon1
-    a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     c = 2 * asin(np.sqrt(a))
     return R * c
 
@@ -91,6 +91,28 @@ def dist_to_metro(lat, lon, metro_df):
     return float(np.nanmin(dists))
 
 
+def normalize_street_input(street: str) -> str:
+    """
+    User should enter only: 'Street name + house number'
+    We sanitize common extra text and then append 'Budapest, Hungary' for geocoding.
+    """
+    s = (street or "").strip()
+
+    # Remove common unwanted tokens if user types them anyway
+    # e.g. "Budapest, Deák Ferenc tér, Hungary" -> "Deák Ferenc tér"
+    s = re.sub(r"\bBudapest\b", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bHungary\b", "", s, flags=re.IGNORECASE)
+
+    # Remove repeated commas and extra spaces
+    s = re.sub(r"\s*,\s*", ", ", s)
+    s = re.sub(r"(,\s*){2,}", ", ", s)
+    s = s.strip(" ,")
+
+    # Build final query (force city & country)
+    # If user adds a district like "V. ker" it still works fine.
+    return f"{s}, Budapest, Hungary"
+
+
 def main():
     st.set_page_config(page_title="Budapest Rent Predictor", layout="centered")
     st.title("Budapest Rent Predictor")
@@ -104,7 +126,14 @@ def main():
 
     st.subheader("Property inputs")
 
-    address = st.text_input("Address / street (Budapest)", value="Budapest, Deák Ferenc tér, Hungary")
+    # ✅ Street-only input (no Budapest / Hungary shown)
+    street_only = st.text_input(
+        "Street name & house number",
+        value="Deák Ferenc tér 1",
+        help="Enter only the street name and house number. Example: 'Deák Ferenc tér 1'.",
+        placeholder="e.g., Rákóczi út 12"
+    )
+
     district = st.selectbox("District", list(range(1, 24)), index=4)
 
     col1, col2 = st.columns(2)
@@ -132,14 +161,17 @@ def main():
     elevator_bin = st.selectbox("Elevator", [0, 1], index=0)
 
     if st.button("Predict rent (HUF)"):
-        query = address.strip()
-        if "hungary" not in query.lower():
-            query = query + ", Hungary"
+        if not street_only or not street_only.strip():
+            st.error("Please enter a street name and house number (e.g., 'Deák Ferenc tér 1').")
+            st.stop()
+
+        # ✅ Always geocode as Budapest, Hungary, regardless of what user typed
+        query = normalize_street_input(street_only)
 
         lat, lon = geocode_address(query)
 
         if pd.isna(lat) or pd.isna(lon):
-            st.error("Could not geocode that address. Try a simpler street name or add a district.")
+            st.error("Could not geocode that address. Try adding a house number or a clearer street name.")
             st.stop()
 
         distance_to_center_km_real = haversine_km(lat, lon, CENTER_LAT, CENTER_LON)
